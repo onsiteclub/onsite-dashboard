@@ -47,13 +47,13 @@ export default async function ProfilePage() {
             ) : (
               <div className="w-24 h-24 rounded-2xl border-4 border-white shadow-lg bg-brand-100 flex items-center justify-center">
                 <span className="text-3xl font-bold text-brand-700">
-                  {getInitials(profile?.first_name, profile?.last_name)}
+                  {getInitials(profile?.nome)}
                 </span>
               </div>
             )}
             <div className="flex-1 sm:mb-2">
               <h2 className="text-2xl font-bold text-gray-900">
-                {profile?.first_name} {profile?.last_name}
+                {profile?.nome}
               </h2>
               <p className="text-gray-500">{user.email}</p>
             </div>
