@@ -13,9 +13,14 @@ import {
   LogOut,
   HardHat,
   Home,
+  LucideIcon,
 } from 'lucide-react'
 
-const menuItems = [
+type MenuItem = 
+  | { type: 'divider' }
+  | { type: 'link'; name: string; href: string; icon: LucideIcon; external?: boolean }
+
+const menuItems: MenuItem[] = [
   { type: 'link', name: 'Home', href: '/account', icon: Home },
   { type: 'link', name: 'My Profile', href: '/account/profile', icon: User },
   { type: 'link', name: 'Settings', href: '/account/settings', icon: Settings },
@@ -60,24 +65,36 @@ export function Sidebar() {
           }
 
           const isActive = pathname === item.href
-          const LinkComponent = item.external ? 'a' : Link
+          const Icon = item.icon
+
+          if (item.external) {
+            return (
+              
+                key={item.name}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-gray-600 hover:bg-gray-50 hover:text-gray-900`}
+              >
+                <Icon className="w-5 h-5 text-gray-400" />
+                <span className="font-medium">{item.name}</span>
+              </a>
+            )
+          }
 
           return (
-            <LinkComponent
+            <Link
               key={item.name}
-              href={item.href!}
-              target={item.external ? '_blank' : undefined}
-              className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-                ${isActive
+              href={item.href}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                isActive
                   ? 'bg-brand-50 text-brand-700'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }
-              `}
+              }`}
             >
-              <item.icon className={`w-5 h-5 ${isActive ? 'text-brand-600' : 'text-gray-400'}`} />
+              <Icon className={`w-5 h-5 ${isActive ? 'text-brand-600' : 'text-gray-400'}`} />
               <span className="font-medium">{item.name}</span>
-            </LinkComponent>
+            </Link>
           )
         })}
       </nav>
