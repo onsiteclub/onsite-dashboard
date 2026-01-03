@@ -38,9 +38,8 @@ export async function middleware(request: NextRequest) {
   // Rotas protegidas - requerem autenticação
   if (pathname.startsWith('/account') || pathname.startsWith('/admin')) {
     if (!user) {
-      const redirectUrl = new URL('/login', request.url)
-      redirectUrl.searchParams.set('redirect', pathname)
-      return NextResponse.redirect(redirectUrl)
+      // Redireciona pra / (página de login) ao invés de /login
+      return NextResponse.redirect(new URL('/', request.url))
     }
   }
 
@@ -55,11 +54,6 @@ export async function middleware(request: NextRequest) {
     if (!profile?.is_admin) {
       return NextResponse.redirect(new URL('/account', request.url))
     }
-  }
-
-  // Redirect se já logado
-  if ((pathname === '/login' || pathname === '/signup') && user) {
-    return NextResponse.redirect(new URL('/account', request.url))
   }
 
   // Atualizar last_seen_at
@@ -77,7 +71,5 @@ export const config = {
   matcher: [
     '/account/:path*',
     '/admin/:path*',
-    '/login',
-    '/signup',
   ],
 }
