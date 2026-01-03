@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 
 type EmailOtpType = 'recovery' | 'email' | 'signup' | 'invite' | 'email_change' | 'magiclink'
 
@@ -8,7 +8,9 @@ export async function GET(request: NextRequest) {
   const origin = url.origin
 
   const type = url.searchParams.get('type') as EmailOtpType | null
-  const token_hash = url.searchParams.get('token_hash') ?? url.searchParams.get('code')
+  const token_hash =
+    url.searchParams.get('token_hash') ??
+    url.searchParams.get('code') // fallback legado
 
   const next = url.searchParams.get('next') ?? (type === 'recovery' ? '/reset-password' : '/account')
   const nextPath = next.startsWith('/') ? next : '/reset-password'
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+        setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options)
           })
