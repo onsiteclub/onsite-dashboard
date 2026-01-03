@@ -53,7 +53,6 @@ export default function AuthPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  // Verificar se ja esta logado
   useEffect(() => {
     async function checkSession() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -64,7 +63,7 @@ export default function AuthPage() {
     checkSession()
   }, [])
 
-  // Verificar se email ja existe - METODO ROBUSTO
+  // Verificar se email existe na tabela profiles
   async function checkEmail(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -80,47 +79,32 @@ export default function AuthPage() {
     }
 
     try {
-      // Metodo robusto: tentar login com senha invalida
-      // Se retornar "Invalid login credentials" = usuario EXISTE
-      // Se retornar outro erro = usuario NAO existe
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: '__check_user_exists_invalid_password__',
-      })
+      const { data, error: queryError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', cleanEmail)
 
-      if (signInError) {
-        const errorMsg = signInError.message.toLowerCase()
-        
-        // "invalid login credentials" = email existe, senha errada
-        if (errorMsg.includes('invalid login credentials') || errorMsg.includes('invalid credentials')) {
-          console.log('User EXISTS - going to login step')
-          setStep('login')
-        } 
-        // "email not confirmed" = email existe mas nao confirmado
-        else if (errorMsg.includes('email not confirmed')) {
-          console.log('User EXISTS but not confirmed - going to login step')
-          setStep('login')
-        }
-        // Qualquer outro erro = usuario nao existe
-        else {
-          console.log('User does NOT exist - going to signup step')
-          setStep('signup')
-        }
+      if (queryError) {
+        console.error('Query error:', queryError)
+        setStep('signup')
+        return
+      }
+
+      if (data && data.length > 0) {
+        // Email existe - ir para login
+        setStep('login')
       } else {
-        // Login funcionou (improvavel com senha invalida) - usuario existe
-        console.log('Unexpected: login worked - going to account')
-        router.push('/account')
+        // Email nao existe - ir para signup
+        setStep('signup')
       }
     } catch (err) {
       console.error('Check email error:', err)
-      // Em caso de erro de rede, assume novo usuario
       setStep('signup')
     } finally {
       setLoading(false)
     }
   }
 
-  // Login
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -156,7 +140,6 @@ export default function AuthPage() {
     }
   }
 
-  // Forgot password
   async function handleForgotPassword() {
     setLoading(true)
     setError(null)
@@ -178,7 +161,6 @@ export default function AuthPage() {
     }
   }
 
-  // Signup
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -187,7 +169,6 @@ export default function AuthPage() {
 
     const cleanEmail = email.trim().toLowerCase()
 
-    // Validacoes
     if (!firstName.trim() || !lastName.trim()) {
       setError('Please enter your first and last name')
       setLoading(false)
@@ -213,7 +194,6 @@ export default function AuthPage() {
 
       const fullName = `${firstName.trim()} ${lastName.trim()}`
 
-      // Criar usuario
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
@@ -240,10 +220,8 @@ export default function AuthPage() {
       }
 
       if (data.user) {
-        // Aguardar trigger criar o profile
         await new Promise(resolve => setTimeout(resolve, 1000))
 
-        // Atualizar profile com dados adicionais
         await supabase
           .from('profiles')
           .update({
@@ -256,7 +234,6 @@ export default function AuthPage() {
           })
           .eq('id', data.user.id)
 
-        // Fazer login automatico apos signup
         const { error: loginError } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
           password,
@@ -264,13 +241,11 @@ export default function AuthPage() {
 
         if (loginError) {
           console.error('Auto-login error:', loginError)
-          // Se nao conseguir login automatico, mostra tela de login
           setSuccessMessage('Account created! Please sign in.')
           setStep('login')
           return
         }
 
-        // Redirecionar para dashboard
         router.push('/account')
         router.refresh()
       }
@@ -282,7 +257,6 @@ export default function AuthPage() {
     }
   }
 
-  // Voltar para email
   function goBack() {
     setStep('email')
     setPassword('')
@@ -311,7 +285,6 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-8">
-        {/* Logo */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-brand-500 mb-4">
             <HardHat className="w-7 h-7 text-white" />
@@ -319,7 +292,6 @@ export default function AuthPage() {
           <h1 className="text-2xl font-bold text-gray-900">OnSite Club</h1>
         </div>
 
-        {/* Step: Email */}
         {step === 'email' && (
           <form onSubmit={checkEmail} className="space-y-4">
             <p className="text-center text-gray-600 mb-4">
@@ -353,7 +325,6 @@ export default function AuthPage() {
           </form>
         )}
 
-        {/* Step: Login */}
         {step === 'login' && (
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="text-center mb-4">
@@ -416,7 +387,6 @@ export default function AuthPage() {
           </form>
         )}
 
-        {/* Step: Signup */}
         {step === 'signup' && (
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="text-center mb-2">
