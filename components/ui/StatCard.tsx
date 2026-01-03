@@ -6,7 +6,7 @@ interface StatCardProps {
   icon?: LucideIcon
   subtitle?: string
   description?: string
-  color?: 'blue' | 'green' | 'purple' | 'yellow' | 'red'
+  color?: 'blue' | 'green' | 'purple' | 'yellow' | 'red' | 'amber'
 }
 
 export function StatCard({ title, value, icon: Icon, subtitle, description, color = 'blue' }: StatCardProps) {
@@ -16,6 +16,7 @@ export function StatCard({ title, value, icon: Icon, subtitle, description, colo
     purple: 'bg-purple-50 text-purple-600',
     yellow: 'bg-yellow-50 text-yellow-600',
     red: 'bg-red-50 text-red-600',
+    amber: 'bg-amber-50 text-amber-600',
   }
 
   return (

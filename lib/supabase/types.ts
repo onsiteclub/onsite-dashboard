@@ -73,6 +73,12 @@ export interface Registro {
   local_latitude: number
   local_longitude: number
   sync_status: string
+  // Campos de edição
+  edited_at: string | null
+  edited_by: 'manual' | 'geofence' | null
+  original_entrada: string | null
+  original_saida: string | null
+  edit_reason: string | null
   created_at: string
   updated_at: string
 }
