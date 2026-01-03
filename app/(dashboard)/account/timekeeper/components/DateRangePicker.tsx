@@ -59,7 +59,7 @@ export function DateRangePicker({ dateRange, onChange }: DateRangePickerProps) {
       end.setDate(0) // Last day of previous month
     } else if (preset.days === 0) {
       // Today - start and end are already set
-    } else {
+    } else if (preset.days) {
       start.setDate(start.getDate() - preset.days)
     }
 
