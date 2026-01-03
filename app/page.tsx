@@ -49,12 +49,11 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [existingUserId, setExistingUserId] = useState<string | null>(null)
 
   const router = useRouter()
   const supabase = createClient()
 
-  // Verificar se já está logado
+  // Verificar se ja esta logado
   useEffect(() => {
     async function checkSession() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -65,7 +64,7 @@ export default function AuthPage() {
     checkSession()
   }, [])
 
-  // Verificar se email já existe
+  // Verificar se email ja existe - METODO ROBUSTO
   async function checkEmail(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -81,26 +80,40 @@ export default function AuthPage() {
     }
 
     try {
-      // Verificar no profiles
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .eq('email', cleanEmail)
-        .maybeSingle()
+      // Metodo robusto: tentar login com senha invalida
+      // Se retornar "Invalid login credentials" = usuario EXISTE
+      // Se retornar outro erro = usuario NAO existe
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: '__check_user_exists_invalid_password__',
+      })
 
-      if (profile && profile.id) {
-        // Email existe - ir para login
-        setExistingUserId(profile.id)
-        setStep('login')
+      if (signInError) {
+        const errorMsg = signInError.message.toLowerCase()
+        
+        // "invalid login credentials" = email existe, senha errada
+        if (errorMsg.includes('invalid login credentials') || errorMsg.includes('invalid credentials')) {
+          console.log('User EXISTS - going to login step')
+          setStep('login')
+        } 
+        // "email not confirmed" = email existe mas nao confirmado
+        else if (errorMsg.includes('email not confirmed')) {
+          console.log('User EXISTS but not confirmed - going to login step')
+          setStep('login')
+        }
+        // Qualquer outro erro = usuario nao existe
+        else {
+          console.log('User does NOT exist - going to signup step')
+          setStep('signup')
+        }
       } else {
-        // Email não existe - ir para signup
-        setExistingUserId(null)
-        setStep('signup')
+        // Login funcionou (improvavel com senha invalida) - usuario existe
+        console.log('Unexpected: login worked - going to account')
+        router.push('/account')
       }
     } catch (err) {
       console.error('Check email error:', err)
-      // Em caso de erro, assume novo usuário
-      setExistingUserId(null)
+      // Em caso de erro de rede, assume novo usuario
       setStep('signup')
     } finally {
       setLoading(false)
@@ -114,17 +127,19 @@ export default function AuthPage() {
     setError(null)
     setSuccessMessage(null)
 
+    const cleanEmail = email.trim().toLowerCase()
+
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
         password,
       })
 
-      if (error) {
-        if (error.message.includes('Invalid login')) {
+      if (signInError) {
+        if (signInError.message.toLowerCase().includes('invalid')) {
           setError('Incorrect password. Try again or reset your password.')
         } else {
-          setError(error.message)
+          setError(signInError.message)
         }
         return
       }
@@ -148,12 +163,12 @@ export default function AuthPage() {
     setSuccessMessage(null)
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
-        { redirectTo: `${window.location.origin}/auth/callback?next=/account/settings` }
+        { redirectTo: `${window.location.origin}/account/settings` }
       )
 
-      if (error) throw error
+      if (resetError) throw resetError
 
       setSuccessMessage('Password reset email sent! Check your inbox.')
     } catch (err: any) {
@@ -172,7 +187,7 @@ export default function AuthPage() {
 
     const cleanEmail = email.trim().toLowerCase()
 
-    // Validações
+    // Validacoes
     if (!firstName.trim() || !lastName.trim()) {
       setError('Please enter your first and last name')
       setLoading(false)
@@ -192,28 +207,14 @@ export default function AuthPage() {
     }
 
     try {
-      // Verificar novamente se email já existe (segurança extra)
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', cleanEmail)
-        .maybeSingle()
-
-      if (existingProfile) {
-        setError('This email is already registered. Please sign in instead.')
-        setStep('login')
-        setLoading(false)
-        return
-      }
-
       const birthday = birthYear && birthMonth && birthDay
         ? `${birthYear}-${birthMonth.padStart(2, '0')}-${birthDay.padStart(2, '0')}`
         : null
 
       const fullName = `${firstName.trim()} ${lastName.trim()}`
 
-      // Criar usuário
-      const { data, error } = await supabase.auth.signUp({
+      // Criar usuario
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
         options: {
@@ -226,22 +227,24 @@ export default function AuthPage() {
         },
       })
 
-      if (error) {
-        if (error.message.includes('already registered')) {
+      if (signUpError) {
+        if (signUpError.message.includes('already registered')) {
           setError('This email is already registered. Please sign in instead.')
           setStep('login')
+        } else if (signUpError.message.includes('rate limit') || signUpError.message.includes('429')) {
+          setError('Too many attempts. Please wait a minute and try again.')
         } else {
-          setError(error.message)
+          setError(signUpError.message)
         }
         return
       }
 
       if (data.user) {
-        // Aguardar um momento para o trigger criar o profile
-        await new Promise(resolve => setTimeout(resolve, 500))
+        // Aguardar trigger criar o profile
+        await new Promise(resolve => setTimeout(resolve, 1000))
 
         // Atualizar profile com dados adicionais
-        const { error: updateError } = await supabase
+        await supabase
           .from('profiles')
           .update({
             first_name: firstName.trim(),
@@ -253,11 +256,21 @@ export default function AuthPage() {
           })
           .eq('id', data.user.id)
 
-        if (updateError) {
-          console.error('Profile update error:', updateError)
+        // Fazer login automatico apos signup
+        const { error: loginError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        })
+
+        if (loginError) {
+          console.error('Auto-login error:', loginError)
+          // Se nao conseguir login automatico, mostra tela de login
+          setSuccessMessage('Account created! Please sign in.')
+          setStep('login')
+          return
         }
 
-        // Redirecionar
+        // Redirecionar para dashboard
         router.push('/account')
         router.refresh()
       }
@@ -273,6 +286,13 @@ export default function AuthPage() {
   function goBack() {
     setStep('email')
     setPassword('')
+    setFirstName('')
+    setLastName('')
+    setTrade('')
+    setBirthDay('')
+    setBirthMonth('')
+    setBirthYear('')
+    setGender('')
     setError(null)
     setSuccessMessage(null)
   }
@@ -340,7 +360,7 @@ export default function AuthPage() {
               <p className="text-gray-600">Welcome back!</p>
               <p className="font-semibold text-gray-900">{email}</p>
               <button type="button" onClick={goBack} className="text-brand-600 text-sm hover:underline mt-1">
-                ← Use a different email
+                Use a different email
               </button>
             </div>
 
@@ -403,7 +423,7 @@ export default function AuthPage() {
               <p className="text-gray-900 font-semibold text-lg">Create your account</p>
               <p className="text-gray-500 text-sm">for {email}</p>
               <button type="button" onClick={goBack} className="text-brand-600 text-sm hover:underline mt-1">
-                ← Use a different email
+                Use a different email
               </button>
             </div>
 
@@ -532,7 +552,7 @@ export default function AuthPage() {
             </button>
 
             <p className="text-center text-sm text-gray-500">
-              🎉 6 months free trial • No credit card required
+              6 months free trial - No credit card required
             </p>
           </form>
         )}
