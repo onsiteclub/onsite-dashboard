@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Eye, EyeOff, Loader2, HardHat, ArrowRight, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Loader2, HardHat, CheckCircle } from 'lucide-react'
 
-type Step = 'email' | 'login' | 'signup'
+type Step = 'login' | 'signup'
 
 const trades = [
   { value: 'other', label: 'Other / Not in construction' },
@@ -35,7 +35,7 @@ const trades = [
 ]
 
 export default function AuthPage() {
-  const [step, setStep] = useState<Step>('email')
+  const [step, setStep] = useState<Step>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -47,6 +47,7 @@ export default function AuthPage() {
   const [trade, setTrade] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [checkingAccount, setCheckingAccount] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -64,7 +65,26 @@ export default function AuthPage() {
   }, [])
 
   // Verificar se email existe na tabela profiles
-  async function checkEmail(e: React.FormEvent) {
+  async function checkEmailExists(emailToCheck: string): Promise<boolean> {
+    try {
+      const { data, error: queryError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', emailToCheck)
+
+      if (queryError) {
+        console.error('Query error:', queryError)
+        return false
+      }
+
+      return data && data.length > 0
+    } catch (err) {
+      console.error('Check email error:', err)
+      return false
+    }
+  }
+
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
@@ -78,40 +98,11 @@ export default function AuthPage() {
       return
     }
 
-    try {
-      const { data, error: queryError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', cleanEmail)
-
-      if (queryError) {
-        console.error('Query error:', queryError)
-        setStep('signup')
-        return
-      }
-
-      if (data && data.length > 0) {
-        // Email existe - ir para login
-        setStep('login')
-      } else {
-        // Email nao existe - ir para signup
-        setStep('signup')
-      }
-    } catch (err) {
-      console.error('Check email error:', err)
-      setStep('signup')
-    } finally {
+    if (!password) {
+      setError('Please enter your password')
       setLoading(false)
+      return
     }
-  }
-
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setSuccessMessage(null)
-
-    const cleanEmail = email.trim().toLowerCase()
 
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -120,10 +111,18 @@ export default function AuthPage() {
       })
 
       if (signInError) {
-        if (signInError.message.toLowerCase().includes('invalid')) {
-          setError('Incorrect password. Try again or reset your password.')
+        // Login falhou - verificar se o email existe
+        setCheckingAccount(true)
+        const emailExists = await checkEmailExists(cleanEmail)
+        setCheckingAccount(false)
+
+        if (!emailExists) {
+          // Email não existe - ir para signup
+          setStep('signup')
+          setError(null)
         } else {
-          setError(signInError.message)
+          // Email existe mas senha errada
+          setError('Incorrect password. Try again or reset your password.')
         }
         return
       }
@@ -258,7 +257,7 @@ export default function AuthPage() {
   }
 
   function goBack() {
-    setStep('email')
+    setStep('login')
     setPassword('')
     setFirstName('')
     setLastName('')
@@ -292,48 +291,11 @@ export default function AuthPage() {
           <h1 className="text-2xl font-bold text-gray-900">OnSite Club</h1>
         </div>
 
-        {step === 'email' && (
-          <form onSubmit={checkEmail} className="space-y-4">
-            <p className="text-center text-gray-600 mb-4">
-              Enter your email to continue
-            </p>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent text-lg"
-              placeholder="Email"
-              autoFocus
-              autoComplete="email"
-            />
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continue <ArrowRight className="w-5 h-5" /></>}
-            </button>
-          </form>
-        )}
-
         {step === 'login' && (
           <form onSubmit={handleLogin} className="space-y-4">
-            <div className="text-center mb-4">
-              <p className="text-gray-600">Welcome back!</p>
-              <p className="font-semibold text-gray-900">{email}</p>
-              <button type="button" onClick={goBack} className="text-brand-600 text-sm hover:underline mt-1">
-                Use a different email
-              </button>
-            </div>
+            <p className="text-center text-gray-600 mb-4">
+              Sign in to your account
+            </p>
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -348,6 +310,17 @@ export default function AuthPage() {
               </div>
             )}
 
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              placeholder="Email"
+              autoFocus
+              autoComplete="email"
+            />
+
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -356,7 +329,6 @@ export default function AuthPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 placeholder="Password"
-                autoFocus
                 autoComplete="current-password"
               />
               <button
@@ -373,7 +345,21 @@ export default function AuthPage() {
               disabled={loading}
               className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+              {loading ? (
+                checkingAccount ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Checking account...</span>
+                  </>
+                ) : (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Signing in...</span>
+                  </>
+                )
+              ) : (
+                'Sign In'
+              )}
             </button>
 
             <button

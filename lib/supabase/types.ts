@@ -5,8 +5,12 @@ export type BladesTransactionType = 'earn' | 'redeem' | 'bonus' | 'adjustment'
 export interface Profile {
   id: string
   email: string
+  nome: string | null
   first_name: string | null
   last_name: string | null
+  birthday: string | null
+  gender: string | null
+  trade: string | null
   phone: string | null
   company: string | null
   role: string | null
