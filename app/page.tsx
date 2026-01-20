@@ -52,7 +52,9 @@ export default function AuthPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const router = useRouter()
-  const supabase = createClient()
+
+  // Create client inside component to avoid build-time initialization
+  const [supabase] = useState(() => createClient())
 
   useEffect(() => {
     async function checkSession() {

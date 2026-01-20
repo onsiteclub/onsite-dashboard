@@ -14,7 +14,9 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false)
 
   const router = useRouter()
-  const supabase = createClient()
+
+  // Create client inside component to avoid build-time initialization
+  const [supabase] = useState(() => createClient())
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
