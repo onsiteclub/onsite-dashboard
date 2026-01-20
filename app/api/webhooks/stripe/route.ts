@@ -1,13 +1,21 @@
 import { stripe } from '@/lib/stripe/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 
-// Use service role for webhooks (bypass RLS)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Lazy initialization to avoid build-time errors
+// Using any for admin client since we don't have generated database types
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let supabaseAdmin: SupabaseClient<any, 'public', any> | null = null
+function getSupabaseAdmin() {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+  }
+  return supabaseAdmin
+}
 
 export async function POST(request: NextRequest) {
   const body = await request.text()
@@ -26,6 +34,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
+  const supabase = getSupabaseAdmin()
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -38,21 +48,23 @@ export async function POST(request: NextRequest) {
             session.subscription as string
           )
 
-          await supabaseAdmin
-            .from('profiles')
-            .update({
+          // Update or insert billing_subscriptions
+          await supabase
+            .from('billing_subscriptions')
+            .upsert({
+              user_id: userId,
+              app_name: 'timekeeper',
               stripe_customer_id: session.customer as string,
               stripe_subscription_id: subscription.id,
-              subscription_status: subscription.status === 'trialing' ? 'trialing' : 'active',
-              subscription_started_at: new Date(subscription.created * 1000).toISOString(),
-              trial_ends_at: subscription.trial_end
+              status: subscription.status === 'trialing' ? 'trialing' : 'active',
+              started_at: new Date(subscription.created * 1000).toISOString(),
+              trial_end: subscription.trial_end
                 ? new Date(subscription.trial_end * 1000).toISOString()
                 : null,
               has_payment_method: true,
-              voice_calculator_enabled: true,
-              sync_enabled: true,
+            }, {
+              onConflict: 'user_id,app_name'
             })
-            .eq('id', userId)
         }
         break
       }
@@ -72,15 +84,16 @@ export async function POST(request: NextRequest) {
             ? 'past_due'
             : 'none'
 
-          await supabaseAdmin
-            .from('profiles')
+          await supabase
+            .from('billing_subscriptions')
             .update({
-              subscription_status: status,
-              trial_ends_at: subscription.trial_end
+              status,
+              trial_end: subscription.trial_end
                 ? new Date(subscription.trial_end * 1000).toISOString()
                 : null,
             })
-            .eq('id', userId)
+            .eq('user_id', userId)
+            .eq('app_name', 'timekeeper')
         }
         break
       }
@@ -90,15 +103,14 @@ export async function POST(request: NextRequest) {
         const userId = subscription.metadata?.supabase_user_id
 
         if (userId) {
-          await supabaseAdmin
-            .from('profiles')
+          await supabase
+            .from('billing_subscriptions')
             .update({
-              subscription_status: 'canceled',
-              subscription_canceled_at: new Date().toISOString(),
-              voice_calculator_enabled: false,
-              sync_enabled: false,
+              status: 'canceled',
+              canceled_at: new Date().toISOString(),
             })
-            .eq('id', userId)
+            .eq('user_id', userId)
+            .eq('app_name', 'timekeeper')
         }
         break
       }
@@ -112,13 +124,14 @@ export async function POST(request: NextRequest) {
           const userId = subscription.metadata?.supabase_user_id
 
           if (userId) {
-            await supabaseAdmin
-              .from('profiles')
+            await supabase
+              .from('billing_subscriptions')
               .update({
-                subscription_status: 'active',
+                status: 'active',
                 has_payment_method: true,
               })
-              .eq('id', userId)
+              .eq('user_id', userId)
+              .eq('app_name', 'timekeeper')
           }
         }
         break
@@ -133,12 +146,13 @@ export async function POST(request: NextRequest) {
           const userId = subscription.metadata?.supabase_user_id
 
           if (userId) {
-            await supabaseAdmin
-              .from('profiles')
+            await supabase
+              .from('billing_subscriptions')
               .update({
-                subscription_status: 'past_due',
+                status: 'past_due',
               })
-              .eq('id', userId)
+              .eq('user_id', userId)
+              .eq('app_name', 'timekeeper')
           }
         }
         break
