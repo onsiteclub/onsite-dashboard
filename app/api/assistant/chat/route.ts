@@ -2,10 +2,18 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { buildContext, getSystemPrompt } from '@/lib/assistant/prompts'
+import type { ProfileWithSubscription } from '@/lib/supabase/types'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy initialization to avoid build-time errors
+let openai: OpenAI | null = null
+function getOpenAIClient() {
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  }
+  return openai
+}
 
 export async function POST(request: Request) {
   try {
@@ -16,19 +24,59 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Fetch user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
+    // Fetch core profile
+    const { data: coreProfile, error: profileError } = await supabase
+      .from('core_profiles')
       .select('*')
       .eq('id', user.id)
       .single()
 
-    if (profileError || !profile) {
+    if (profileError || !coreProfile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
+    // Fetch subscription
+    const { data: subscription } = await supabase
+      .from('billing_subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('app_name', 'timekeeper')
+      .single()
+
+    // Fetch device
+    const { data: device } = await supabase
+      .from('core_devices')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_primary', true)
+      .single()
+
+    // Fetch blades balance
+    const { data: bladesTransactions } = await supabase
+      .from('blades_transactions')
+      .select('amount')
+      .eq('user_id', user.id)
+
+    const bladesBalance = bladesTransactions?.reduce((sum, t) => sum + t.amount, 0) ?? 0
+
+    // Compose profile
+    const profile: ProfileWithSubscription = {
+      ...coreProfile,
+      subscription_status: subscription?.status ?? 'none',
+      trial_ends_at: subscription?.trial_end ?? null,
+      has_payment_method: subscription?.has_payment_method ?? false,
+      stripe_customer_id: subscription?.stripe_customer_id ?? null,
+      voice_calculator_enabled: false,
+      sync_enabled: false,
+      device_id: device?.device_id ?? null,
+      device_model: device?.model ?? null,
+      device_platform: device?.platform ?? null,
+      device_registered_at: device?.first_seen_at ?? null,
+      blades_balance: bladesBalance,
+    }
+
     // Check subscription status - only trialing and active can use
-    if (!['trialing', 'active'].includes(profile.subscription_status)) {
+    if (!['trialing', 'active'].includes(profile.subscription_status || '')) {
       return NextResponse.json(
         { error: 'Active subscription required to use the assistant' },
         { status: 403 }
@@ -57,7 +105,7 @@ export async function POST(request: Request) {
     ]
 
     // Call OpenAI API
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini', // Using mini for cost efficiency, can upgrade to gpt-4o
       messages,
       max_tokens: 500,
