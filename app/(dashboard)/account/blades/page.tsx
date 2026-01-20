@@ -3,23 +3,19 @@ import { redirect } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import { Award, Gift, Users, ShoppingBag, TrendingUp, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import type { UserLevel } from '@/lib/supabase/types'
 
 export const metadata = {
-  title: 'Blades Rewards',
+  title: 'Blades Rewards | OnSite Club',
 }
 
 export default async function BladesPage() {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect('/')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('blades_balance, blades_lifetime_earned, level')
-    .eq('id', user.id)
-    .single()
-
+  // Fetch transactions from blades_transactions
   const { data: transactions } = await supabase
     .from('blades_transactions')
     .select('*')
@@ -27,7 +23,20 @@ export default async function BladesPage() {
     .order('created_at', { ascending: false })
     .limit(20)
 
-  const levelInfo: Record<string, { min: number; max: number; color: string; bgColor: string }> = {
+  // Calculate balance and lifetime from transactions
+  const balance = transactions?.reduce((sum, t) => sum + t.amount, 0) ?? 0
+  const lifetime = transactions?.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0) ?? 0
+
+  // Determine level based on lifetime earnings
+  const getUserLevel = (blades: number): UserLevel => {
+    if (blades >= 5000) return 'legend'
+    if (blades >= 1000) return 'master'
+    if (blades >= 500) return 'journeyman'
+    if (blades >= 100) return 'apprentice'
+    return 'rookie'
+  }
+
+  const levelInfo: Record<UserLevel, { min: number; max: number; color: string; bgColor: string }> = {
     rookie: { min: 0, max: 99, color: 'text-gray-700', bgColor: 'bg-gray-100' },
     apprentice: { min: 100, max: 499, color: 'text-blue-700', bgColor: 'bg-blue-100' },
     journeyman: { min: 500, max: 999, color: 'text-green-700', bgColor: 'bg-green-100' },
@@ -35,18 +44,16 @@ export default async function BladesPage() {
     legend: { min: 5000, max: Infinity, color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
   }
 
-  const currentLevel = profile?.level || 'rookie'
+  const currentLevel = getUserLevel(lifetime)
   const level = levelInfo[currentLevel]
-  const balance = profile?.blades_balance || 0
-  const lifetime = profile?.blades_lifetime_earned || 0
 
   // Calculate progress to next level
-  const nextLevelName = Object.keys(levelInfo).find(
-    (l) => levelInfo[l].min > balance
-  ) || 'legend'
+  const levelOrder: UserLevel[] = ['rookie', 'apprentice', 'journeyman', 'master', 'legend']
+  const currentIndex = levelOrder.indexOf(currentLevel)
+  const nextLevelName = currentIndex < levelOrder.length - 1 ? levelOrder[currentIndex + 1] : 'legend'
   const nextLevel = levelInfo[nextLevelName]
-  const progress = nextLevel 
-    ? Math.min(100, ((balance - level.min) / (nextLevel.min - level.min)) * 100)
+  const progress = nextLevel
+    ? Math.min(100, ((lifetime - level.min) / (nextLevel.min - level.min)) * 100)
     : 100
 
   return (
@@ -54,7 +61,7 @@ export default async function BladesPage() {
       {/* Back + Header */}
       <div>
         <Link href="/account" className="text-sm text-gray-500 hover:text-gray-700 mb-2 inline-block">
-          ← Back to Dashboard
+          &larr; Back to Dashboard
         </Link>
         <h1 className="text-3xl font-bold text-gray-900">Blades Rewards</h1>
         <p className="text-gray-600 mt-1">
@@ -86,12 +93,12 @@ export default async function BladesPage() {
             </span>
             {nextLevelName !== currentLevel && (
               <span className="text-yellow-100 text-sm">
-                {nextLevel.min - balance} to {nextLevelName.charAt(0).toUpperCase() + nextLevelName.slice(1)}
+                {nextLevel.min - lifetime} to {nextLevelName.charAt(0).toUpperCase() + nextLevelName.slice(1)}
               </span>
             )}
           </div>
           <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-white rounded-full transition-all"
               style={{ width: `${progress}%` }}
             />
@@ -140,12 +147,12 @@ export default async function BladesPage() {
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <h3 className="text-xl font-semibold text-gray-900 mb-6">Levels</h3>
         <div className="space-y-3">
-          {Object.entries(levelInfo).map(([name, info]) => (
-            <div 
+          {(Object.entries(levelInfo) as [UserLevel, typeof levelInfo[UserLevel]][]).map(([name, info]) => (
+            <div
               key={name}
               className={`flex items-center justify-between p-4 rounded-xl border ${
-                name === currentLevel 
-                  ? 'border-yellow-300 bg-yellow-50' 
+                name === currentLevel
+                  ? 'border-yellow-300 bg-yellow-50'
                   : 'border-gray-100'
               }`}
             >
@@ -168,7 +175,7 @@ export default async function BladesPage() {
       {/* Transaction History */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <h3 className="text-xl font-semibold text-gray-900 mb-6">Transaction History</h3>
-        
+
         {transactions && transactions.length > 0 ? (
           <div className="space-y-1">
             {transactions.map((tx) => (
@@ -185,7 +192,7 @@ export default async function BladesPage() {
                     }`} />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{tx.reason}</p>
+                    <p className="font-medium text-gray-900">{tx.reason || 'Transaction'}</p>
                     <p className="text-sm text-gray-500">{formatDate(tx.created_at)}</p>
                   </div>
                 </div>

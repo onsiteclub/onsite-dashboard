@@ -1,4 +1,4 @@
-import { Profile } from '@/lib/supabase/types'
+import type { ProfileWithSubscription } from '@/lib/supabase/types'
 
 export interface AssistantContext {
   currentPage: string
@@ -19,7 +19,7 @@ export interface AssistantContext {
   }
 }
 
-export function buildContext(profile: Profile, currentPage: string): AssistantContext {
+export function buildContext(profile: ProfileWithSubscription, currentPage: string): AssistantContext {
   const trialDaysRemaining = profile.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(profile.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : null
@@ -27,19 +27,19 @@ export function buildContext(profile: Profile, currentPage: string): AssistantCo
   return {
     currentPage,
     user: {
-      name: profile.first_name || profile.nome || 'User',
+      name: profile.first_name || profile.full_name || 'User',
       email: profile.email,
-      subscriptionStatus: profile.subscription_status,
+      subscriptionStatus: profile.subscription_status || 'none',
       trialDaysRemaining,
-      hasPaymentMethod: profile.has_payment_method,
+      hasPaymentMethod: profile.has_payment_method || false,
       deviceLinked: !!profile.device_id,
-      level: profile.level,
-      bladesBalance: profile.blades_balance,
+      level: profile.level || 'rookie',
+      bladesBalance: profile.blades_balance || 0,
       trade: profile.trade,
     },
     features: {
-      voiceCalculatorEnabled: profile.voice_calculator_enabled,
-      syncEnabled: profile.sync_enabled,
+      voiceCalculatorEnabled: profile.voice_calculator_enabled || false,
+      syncEnabled: profile.sync_enabled || false,
     },
   }
 }

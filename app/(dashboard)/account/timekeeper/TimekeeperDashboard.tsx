@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { 
-  Clock, MapPin, Calendar, Download, FileSpreadsheet, 
+import {
+  Clock, MapPin, Calendar, Download, FileSpreadsheet,
   FileText, ChevronDown, Edit3, Check, X, Share2,
   BarChart3, Filter
 } from 'lucide-react'
@@ -13,12 +13,12 @@ import { DateRangePicker } from './components/DateRangePicker'
 import { EditableCell } from './components/EditableCell'
 import { ReportHeader } from './components/ReportHeader'
 import { formatMinutesToHours } from '@/lib/utils'
-import type { Registro, Local, Profile } from '@/lib/supabase/types'
+import type { TimekeeperEntry, TimekeeperGeofence, ProfileWithSubscription } from '@/lib/supabase/types'
 
 interface TimekeeperDashboardProps {
-  profile: Profile
-  registros: Registro[]
-  locais: Local[]
+  profile: ProfileWithSubscription
+  entries: TimekeeperEntry[]
+  geofences: TimekeeperGeofence[]
 }
 
 export type DateRange = {
@@ -27,12 +27,12 @@ export type DateRange = {
   label?: string
 }
 
-export default function TimekeeperDashboard({ 
-  profile, 
-  registros: initialRegistros, 
-  locais 
+export default function TimekeeperDashboard({
+  profile,
+  entries: initialEntries,
+  geofences
 }: TimekeeperDashboardProps) {
-  const [registros, setRegistros] = useState(initialRegistros)
+  const [entries, setEntries] = useState(initialEntries)
   const [dateRange, setDateRange] = useState<DateRange>(() => {
     const end = new Date()
     const start = new Date()
@@ -43,45 +43,45 @@ export default function TimekeeperDashboard({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
 
-  // Filtrar registros pelo período selecionado
-  const filteredRegistros = useMemo(() => {
-    return registros.filter(r => {
-      const entrada = new Date(r.entrada)
-      return entrada >= dateRange.start && entrada <= dateRange.end
+  // Filter entries by selected date range
+  const filteredEntries = useMemo(() => {
+    return entries.filter(e => {
+      const entryAt = new Date(e.entry_at)
+      return entryAt >= dateRange.start && entryAt <= dateRange.end
     })
-  }, [registros, dateRange])
+  }, [entries, dateRange])
 
-  // Calcular estatísticas
+  // Calculate statistics
   const stats = useMemo(() => {
     let totalMinutos = 0
-    const registrosCompletos = filteredRegistros.filter(r => r.saida)
-    const diasTrabalhados = new Set<string>()
-    const locaisUsados = new Set<string>()
-    let registrosEditados = 0
+    const completedEntries = filteredEntries.filter(e => e.exit_at)
+    const daysWorked = new Set<string>()
+    const locationsUsed = new Set<string>()
+    let editedEntries = 0
 
-    registrosCompletos.forEach(reg => {
-      const entrada = new Date(reg.entrada)
-      const saida = new Date(reg.saida!).getTime()
-      totalMinutos += Math.round((saida - entrada.getTime()) / 60000)
-      diasTrabalhados.add(entrada.toDateString())
-      if (reg.local_nome) locaisUsados.add(reg.local_nome)
-      if ((reg as any).edited_at) registrosEditados++
+    completedEntries.forEach(entry => {
+      const entryAt = new Date(entry.entry_at)
+      const exitAt = new Date(entry.exit_at!).getTime()
+      totalMinutos += Math.round((exitAt - entryAt.getTime()) / 60000)
+      daysWorked.add(entryAt.toDateString())
+      if (entry.location_name) locationsUsed.add(entry.location_name)
+      if (entry.manually_edited) editedEntries++
     })
 
     return {
       totalMinutos,
-      totalSessoes: filteredRegistros.length,
-      diasTrabalhados: diasTrabalhados.size,
-      locaisUsados: Array.from(locaisUsados),
-      registrosEditados
+      totalSessoes: filteredEntries.length,
+      diasTrabalhados: daysWorked.size,
+      locaisUsados: Array.from(locationsUsed),
+      registrosEditados: editedEntries
     }
-  }, [filteredRegistros])
+  }, [filteredEntries])
 
-  // Dados para o gráfico (horas por dia)
+  // Chart data (hours per day)
   const chartData = useMemo(() => {
     const dayMap = new Map<string, number>()
-    
-    // Inicializar todos os dias do período com 0
+
+    // Initialize all days in range with 0
     const current = new Date(dateRange.start)
     while (current <= dateRange.end) {
       const key = current.toISOString().split('T')[0]
@@ -89,13 +89,13 @@ export default function TimekeeperDashboard({
       current.setDate(current.getDate() + 1)
     }
 
-    // Somar horas por dia
-    filteredRegistros.forEach(reg => {
-      if (!reg.saida) return
-      const entrada = new Date(reg.entrada)
-      const saida = new Date(reg.saida)
-      const key = entrada.toISOString().split('T')[0]
-      const minutos = Math.round((saida.getTime() - entrada.getTime()) / 60000)
+    // Sum hours by day
+    filteredEntries.forEach(entry => {
+      if (!entry.exit_at) return
+      const entryAt = new Date(entry.entry_at)
+      const exitAt = new Date(entry.exit_at)
+      const key = entryAt.toISOString().split('T')[0]
+      const minutos = Math.round((exitAt.getTime() - entryAt.getTime()) / 60000)
       dayMap.set(key, (dayMap.get(key) || 0) + minutos / 60)
     })
 
@@ -103,18 +103,18 @@ export default function TimekeeperDashboard({
       .map(([date, hours]) => ({
         date,
         hours: Math.round(hours * 100) / 100,
-        label: new Date(date + 'T12:00:00').toLocaleDateString('en-CA', { 
-          weekday: 'short', 
-          day: 'numeric' 
+        label: new Date(date + 'T12:00:00').toLocaleDateString('en-CA', {
+          weekday: 'short',
+          day: 'numeric'
         })
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
-  }, [filteredRegistros, dateRange])
+  }, [filteredEntries, dateRange])
 
-  // Atualizar registro
-  const handleUpdateRegistro = async (
-    id: string, 
-    field: 'entrada' | 'saida', 
+  // Update entry
+  const handleUpdateEntry = async (
+    id: string,
+    field: 'entry_at' | 'exit_at',
     value: string
   ) => {
     try {
@@ -127,14 +127,14 @@ export default function TimekeeperDashboard({
       if (!response.ok) throw new Error('Failed to update')
 
       const updated = await response.json()
-      
-      setRegistros(prev => 
-        prev.map(r => r.id === id ? { ...r, ...updated } : r)
+
+      setEntries(prev =>
+        prev.map(e => e.id === id ? { ...e, ...updated } : e)
       )
       setEditingId(null)
     } catch (error) {
-      console.error('Error updating registro:', error)
-      alert('Erro ao atualizar registro')
+      console.error('Error updating entry:', error)
+      alert('Error updating entry')
     }
   }
 
@@ -146,7 +146,7 @@ export default function TimekeeperDashboard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          registros: filteredRegistros,
+          entries: filteredEntries,
           profile,
           dateRange: {
             start: dateRange.start.toISOString(),
@@ -165,7 +165,7 @@ export default function TimekeeperDashboard({
       window.URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Export error:', error)
-      alert('Erro ao exportar Excel')
+      alert('Error exporting Excel')
     } finally {
       setIsExporting(false)
     }
@@ -179,7 +179,7 @@ export default function TimekeeperDashboard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          registros: filteredRegistros,
+          entries: filteredEntries,
           profile,
           dateRange: {
             start: dateRange.start.toISOString(),
@@ -198,15 +198,15 @@ export default function TimekeeperDashboard({
       window.URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Export error:', error)
-      alert('Erro ao exportar PDF')
+      alert('Error exporting PDF')
     } finally {
       setIsExporting(false)
     }
   }
 
-  const userName = profile.first_name && profile.last_name 
+  const userName = profile.first_name && profile.last_name
     ? `${profile.first_name} ${profile.last_name}`
-    : profile.email
+    : profile.full_name || profile.email
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -224,8 +224,8 @@ export default function TimekeeperDashboard({
           <button
             onClick={() => setShowChart(!showChart)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
-              showChart 
-                ? 'bg-brand-50 border-brand-200 text-brand-700' 
+              showChart
+                ? 'bg-brand-50 border-brand-200 text-brand-700'
                 : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
@@ -237,7 +237,7 @@ export default function TimekeeperDashboard({
 
           <button
             onClick={handleExportExcel}
-            disabled={isExporting || filteredRegistros.length === 0}
+            disabled={isExporting || filteredEntries.length === 0}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4" />
@@ -246,7 +246,7 @@ export default function TimekeeperDashboard({
 
           <button
             onClick={handleExportPDF}
-            disabled={isExporting || filteredRegistros.length === 0}
+            disabled={isExporting || filteredEntries.length === 0}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FileText className="w-4 h-4" />
@@ -265,9 +265,9 @@ export default function TimekeeperDashboard({
       </div>
 
       {/* Date Range Picker */}
-      <DateRangePicker 
-        dateRange={dateRange} 
-        onChange={setDateRange} 
+      <DateRangePicker
+        dateRange={dateRange}
+        onChange={setDateRange}
       />
 
       {/* Stats */}
@@ -313,12 +313,12 @@ export default function TimekeeperDashboard({
           <h2 className="text-lg font-semibold text-gray-900">
             Records
             <span className="ml-2 text-sm font-normal text-gray-500">
-              ({filteredRegistros.length})
+              ({filteredEntries.length})
             </span>
           </h2>
         </div>
 
-        {filteredRegistros.length > 0 ? (
+        {filteredEntries.length > 0 ? (
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -343,29 +343,29 @@ export default function TimekeeperDashboard({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredRegistros.map((registro) => {
-                    const entrada = new Date(registro.entrada)
-                    const saida = registro.saida ? new Date(registro.saida) : null
-                    const duracao = saida
-                      ? Math.round((saida.getTime() - entrada.getTime()) / 60000)
+                  {filteredEntries.map((entry) => {
+                    const entryAt = new Date(entry.entry_at)
+                    const exitAt = entry.exit_at ? new Date(entry.exit_at) : null
+                    const duration = exitAt
+                      ? Math.round((exitAt.getTime() - entryAt.getTime()) / 60000)
                       : null
-                    const isEdited = !!(registro as any).edited_at
-                    const isEditing = editingId === registro.id
+                    const isEdited = entry.manually_edited
+                    const isEditing = editingId === entry.id
 
                     return (
-                      <tr 
-                        key={registro.id} 
+                      <tr
+                        key={entry.id}
                         className={`hover:bg-gray-50 transition-colors ${
                           isEdited ? 'bg-amber-50/50' : ''
                         }`}
                       >
                         <td className="py-3 px-4">
                           <span className="font-medium text-gray-900">
-                            {registro.local_nome || 'Unknown'}
+                            {entry.location_name || 'Unknown'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-gray-600">
-                          {entrada.toLocaleDateString('en-CA', {
+                          {entryAt.toLocaleDateString('en-CA', {
                             weekday: 'short',
                             month: 'short',
                             day: 'numeric'
@@ -373,22 +373,22 @@ export default function TimekeeperDashboard({
                         </td>
                         <td className="py-3 px-4">
                           <EditableCell
-                            value={entrada}
+                            value={entryAt}
                             type="time"
                             isEditing={isEditing}
-                            isEdited={isEdited && !!(registro as any).original_entrada}
-                            onSave={(value) => handleUpdateRegistro(registro.id, 'entrada', value)}
+                            isEdited={isEdited && !!entry.original_entry_at}
+                            onSave={(value) => handleUpdateEntry(entry.id, 'entry_at', value)}
                             onCancel={() => setEditingId(null)}
                           />
                         </td>
                         <td className="py-3 px-4">
-                          {saida ? (
+                          {exitAt ? (
                             <EditableCell
-                              value={saida}
+                              value={exitAt}
                               type="time"
                               isEditing={isEditing}
-                              isEdited={isEdited && !!(registro as any).original_saida}
-                              onSave={(value) => handleUpdateRegistro(registro.id, 'saida', value)}
+                              isEdited={isEdited && !!entry.original_exit_at}
+                              onSave={(value) => handleUpdateEntry(entry.id, 'exit_at', value)}
                               onCancel={() => setEditingId(null)}
                             />
                           ) : (
@@ -398,18 +398,18 @@ export default function TimekeeperDashboard({
                           )}
                         </td>
                         <td className="py-3 px-4">
-                          {duracao ? (
+                          {duration ? (
                             <span className="font-semibold text-gray-900">
-                              {formatMinutesToHours(duracao)}
+                              {formatMinutesToHours(duration)}
                             </span>
                           ) : (
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
                         <td className="py-3 px-4">
-                          {!isEditing && saida && (
+                          {!isEditing && exitAt && (
                             <button
-                              onClick={() => setEditingId(registro.id)}
+                              onClick={() => setEditingId(entry.id)}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                               title="Edit"
                             >

@@ -4,30 +4,63 @@ import { formatDate } from '@/lib/utils'
 import { CreditCard, Smartphone, Shield, User, AlertCircle, Check, X } from 'lucide-react'
 import { SubscriptionManager } from './SubscriptionManager'
 import { DeviceManager } from './DeviceManager'
+import type { ProfileWithSubscription, SubscriptionStatus } from '@/lib/supabase/types'
 
 export const metadata = {
-  title: 'Configurações',
+  title: 'Settings | OnSite Club',
 }
 
 export default async function SettingsPage() {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect('/')
 
-  const { data: profile } = await supabase
-    .from('profiles')
+  // Fetch profile from core_profiles
+  const { data: coreProfile } = await supabase
+    .from('core_profiles')
     .select('*')
     .eq('id', user.id)
     .single()
+
+  // Fetch subscription from billing_subscriptions
+  const { data: subscription } = await supabase
+    .from('billing_subscriptions')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('app_name', 'timekeeper')
+    .single()
+
+  // Fetch primary device from core_devices
+  const { data: device } = await supabase
+    .from('core_devices')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('is_primary', true)
+    .single()
+
+  // Compose profile data
+  const profile: ProfileWithSubscription | null = coreProfile ? {
+    ...coreProfile,
+    subscription_status: subscription?.status ?? 'none',
+    trial_ends_at: subscription?.trial_end ?? null,
+    has_payment_method: subscription?.has_payment_method ?? false,
+    stripe_customer_id: subscription?.stripe_customer_id ?? null,
+    voice_calculator_enabled: false,
+    sync_enabled: false,
+    device_id: device?.device_id ?? null,
+    device_model: device?.model ?? null,
+    device_platform: device?.platform ?? null,
+    device_registered_at: device?.first_seen_at ?? null,
+  } : null
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Configurações</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-600 mt-1">
-          Gerencie sua conta e preferências
+          Manage your account and preferences
         </p>
       </div>
 
@@ -37,7 +70,7 @@ export default async function SettingsPage() {
           <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
             <CreditCard className="w-5 h-5 text-green-600" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Assinatura</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Subscription</h2>
         </div>
 
         {/* Status */}
@@ -45,7 +78,7 @@ export default async function SettingsPage() {
           <div className="flex items-center justify-between py-4 border-b border-gray-100">
             <div>
               <p className="font-medium text-gray-900">Status</p>
-              <p className="text-sm text-gray-500">Estado atual da sua assinatura</p>
+              <p className="text-sm text-gray-500">Current subscription status</p>
             </div>
             <SubscriptionBadge status={profile?.subscription_status || 'none'} />
           </div>
@@ -56,10 +89,10 @@ export default async function SettingsPage() {
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h3 className="font-semibold text-blue-900">Trial de 6 meses ativo</h3>
+                  <h3 className="font-semibold text-blue-900">6-month trial active</h3>
                   <p className="text-blue-700 text-sm mt-1">
-                    Seu trial termina em {formatDate(profile.trial_ends_at)}.
-                    Após isso, será cobrado CAD $9.99/mês automaticamente.
+                    Your trial ends on {formatDate(profile.trial_ends_at)}.
+                    After that, you will be charged CAD $9.99/month automatically.
                   </p>
                 </div>
               </div>
@@ -70,19 +103,19 @@ export default async function SettingsPage() {
           <SubscriptionManager
             hasPaymentMethod={profile?.has_payment_method || false}
             subscriptionStatus={profile?.subscription_status || 'none'}
-            stripeCustomerId={profile?.stripe_customer_id}
+            stripeCustomerId={profile?.stripe_customer_id ?? null}
           />
 
           {/* Features */}
           <div className="pt-4">
-            <p className="font-medium text-gray-900 mb-3">Features Liberadas</p>
+            <p className="font-medium text-gray-900 mb-3">Unlocked Features</p>
             <div className="space-y-2">
               <FeatureStatus
                 name="Voice Calculator"
                 enabled={profile?.voice_calculator_enabled || false}
               />
               <FeatureStatus
-                name="Sync Automático"
+                name="Auto Sync"
                 enabled={profile?.sync_enabled || false}
               />
               <FeatureStatus
@@ -100,14 +133,14 @@ export default async function SettingsPage() {
           <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
             <Smartphone className="w-5 h-5 text-purple-600" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Dispositivo Vinculado</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Linked Device</h2>
         </div>
 
         <DeviceManager
-          deviceId={profile?.device_id}
-          deviceModel={profile?.device_model}
-          devicePlatform={profile?.device_platform}
-          deviceRegisteredAt={profile?.device_registered_at}
+          deviceId={profile?.device_id ?? null}
+          deviceModel={profile?.device_model ?? null}
+          devicePlatform={profile?.device_platform ?? null}
+          deviceRegisteredAt={profile?.device_registered_at ?? null}
         />
       </div>
 
@@ -117,7 +150,7 @@ export default async function SettingsPage() {
           <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
             <User className="w-5 h-5 text-gray-600" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Conta</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Account</h2>
         </div>
 
         <div className="space-y-4">
@@ -130,20 +163,20 @@ export default async function SettingsPage() {
 
           <div className="flex items-center justify-between py-4 border-b border-gray-100">
             <div>
-              <p className="font-medium text-gray-900">Senha</p>
+              <p className="font-medium text-gray-900">Password</p>
               <p className="text-sm text-gray-500">••••••••</p>
             </div>
             <button className="text-sm text-brand-600 hover:text-brand-700 font-medium">
-              Alterar
+              Change
             </button>
           </div>
 
           <div className="pt-4">
             <button className="text-sm text-red-600 hover:text-red-700 font-medium">
-              Deletar Conta
+              Delete Account
             </button>
             <p className="text-xs text-gray-500 mt-1">
-              Esta ação é permanente e não pode ser desfeita
+              This action is permanent and cannot be undone
             </p>
           </div>
         </div>
@@ -155,34 +188,34 @@ export default async function SettingsPage() {
           <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
             <Shield className="w-5 h-5 text-blue-600" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Segurança & Privacidade</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Security & Privacy</h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <LegalLink href="/terms" text="📄 Termos de Uso" />
-          <LegalLink href="/privacy" text="🔒 Política de Privacidade" />
-          <LegalLink href="/cancellation" text="💳 Política de Cancelamento" />
-          <LegalLink href="/security" text="🛡️ Segurança de Dados" />
+          <LegalLink href="/terms" text="Terms of Use" />
+          <LegalLink href="/privacy" text="Privacy Policy" />
+          <LegalLink href="/cancellation" text="Cancellation Policy" />
+          <LegalLink href="/security" text="Data Security" />
         </div>
       </div>
     </div>
   )
 }
 
-function SubscriptionBadge({ status }: { status: string }) {
-  const badges: Record<string, { label: string; color: string; icon: string }> = {
-    trialing: { label: 'Trial Ativo', color: 'bg-blue-100 text-blue-800', icon: '🎉' },
-    active: { label: 'Ativo', color: 'bg-green-100 text-green-800', icon: '✅' },
-    past_due: { label: 'Pagamento Pendente', color: 'bg-yellow-100 text-yellow-800', icon: '⚠️' },
-    canceled: { label: 'Cancelado', color: 'bg-red-100 text-red-800', icon: '❌' },
-    none: { label: 'Sem Assinatura', color: 'bg-gray-100 text-gray-800', icon: '⏸️' },
+function SubscriptionBadge({ status }: { status: SubscriptionStatus | string }) {
+  const badges: Record<string, { label: string; color: string }> = {
+    trialing: { label: 'Trial Active', color: 'bg-blue-100 text-blue-800' },
+    active: { label: 'Active', color: 'bg-green-100 text-green-800' },
+    past_due: { label: 'Payment Pending', color: 'bg-yellow-100 text-yellow-800' },
+    canceled: { label: 'Canceled', color: 'bg-red-100 text-red-800' },
+    inactive: { label: 'Inactive', color: 'bg-gray-100 text-gray-800' },
+    none: { label: 'No Subscription', color: 'bg-gray-100 text-gray-800' },
   }
 
   const badge = badges[status] || badges.none
 
   return (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${badge.color}`}>
-      <span>{badge.icon}</span>
       {badge.label}
     </span>
   )
@@ -195,12 +228,12 @@ function FeatureStatus({ name, enabled }: { name: string; enabled: boolean }) {
       {enabled ? (
         <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
           <Check className="w-4 h-4" />
-          Ativado
+          Enabled
         </span>
       ) : (
         <span className="flex items-center gap-1.5 text-sm text-gray-400">
           <X className="w-4 h-4" />
-          Bloqueado
+          Locked
         </span>
       )}
     </div>

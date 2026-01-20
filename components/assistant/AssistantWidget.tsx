@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { MessageCircle, X } from 'lucide-react'
 import AssistantChat from './AssistantChat'
-import { Profile } from '@/lib/supabase/types'
+import type { ProfileWithSubscription } from '@/lib/supabase/types'
 
 interface AssistantWidgetProps {
-  profile: Profile
+  profile: ProfileWithSubscription
 }
 
 export default function AssistantWidget({ profile }: AssistantWidgetProps) {
@@ -16,7 +16,7 @@ export default function AssistantWidget({ profile }: AssistantWidgetProps) {
   const pathname = usePathname()
 
   // Check if user can use assistant (trialing or active subscription)
-  const canUseAssistant = ['trialing', 'active'].includes(profile.subscription_status)
+  const canUseAssistant = ['trialing', 'active'].includes(profile.subscription_status || '')
 
   // Animation delay for entrance
   useEffect(() => {

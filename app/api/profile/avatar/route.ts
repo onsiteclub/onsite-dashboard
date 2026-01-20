@@ -51,10 +51,10 @@ export async function POST(request: Request) {
       .from('avatars')
       .getPublicUrl(filePath)
 
-    // Update profile
+    // Update core_profiles table
     const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ 
+      .from('core_profiles')
+      .update({
         avatar_url: publicUrl,
         updated_at: new Date().toISOString(),
       })

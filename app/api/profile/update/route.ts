@@ -11,17 +11,20 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { first_name, last_name, phone, company, role, bio } = body
+    const { first_name, last_name, company_name, trade } = body
 
+    // Update core_profiles table
     const { error } = await supabase
-      .from('profiles')
+      .from('core_profiles')
       .update({
         first_name: first_name?.trim() || null,
         last_name: last_name?.trim() || null,
-        phone: phone?.trim() || null,
-        company: company?.trim() || null,
-        role: role?.trim() || null,
-        bio: bio?.trim() || null,
+        company_name: company_name?.trim() || null,
+        trade: trade?.trim() || null,
+        // Also update full_name for backward compatibility
+        full_name: first_name && last_name
+          ? `${first_name.trim()} ${last_name.trim()}`
+          : first_name?.trim() || last_name?.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id)

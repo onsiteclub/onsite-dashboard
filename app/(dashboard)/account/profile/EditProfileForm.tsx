@@ -3,30 +3,28 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Profile } from '@/lib/supabase/types'
+import type { ProfileWithSubscription } from '@/lib/supabase/types'
 import { Loader2, Save, Upload } from 'lucide-react'
 
 interface EditProfileFormProps {
-  profile: Profile | null
+  profile: ProfileWithSubscription | null
 }
 
 export function EditProfileForm({ profile }: EditProfileFormProps) {
   const [formData, setFormData] = useState({
     first_name: profile?.first_name || '',
     last_name: profile?.last_name || '',
-    phone: profile?.phone || '',
-    company: profile?.company || '',
-    role: profile?.role || '',
-    bio: profile?.bio || '',
+    company_name: profile?.company_name || '',
+    trade: profile?.trade || '',
   })
   const [loading, setLoading] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  
+
   const router = useRouter()
   const supabase = createClient()
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
@@ -45,10 +43,10 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Erro ao atualizar perfil')
+        throw new Error(data.error || 'Error updating profile')
       }
 
-      setMessage({ type: 'success', text: 'Perfil atualizado com sucesso!' })
+      setMessage({ type: 'success', text: 'Profile updated successfully!' })
       router.refresh()
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message })
@@ -76,10 +74,10 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Erro ao fazer upload')
+        throw new Error(data.error || 'Error uploading')
       }
 
-      setMessage({ type: 'success', text: 'Avatar atualizado!' })
+      setMessage({ type: 'success', text: 'Avatar updated!' })
       router.refresh()
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message })
@@ -91,7 +89,7 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-5">
-        Editar Perfil
+        Edit Profile
       </h3>
 
       {message && (
@@ -108,7 +106,7 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
         {/* Avatar Upload */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Foto de Perfil
+            Profile Photo
           </label>
           <div className="flex items-center gap-4">
             <label className="cursor-pointer">
@@ -118,7 +116,7 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                {uploadingAvatar ? 'Enviando...' : 'Alterar foto'}
+                {uploadingAvatar ? 'Uploading...' : 'Change photo'}
               </div>
               <input
                 type="file"
@@ -128,7 +126,7 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
                 className="hidden"
               />
             </label>
-            <span className="text-sm text-gray-500">JPG, PNG ou WebP. Máx 2MB.</span>
+            <span className="text-sm text-gray-500">JPG, PNG or WebP. Max 2MB.</span>
           </div>
         </div>
 
@@ -136,7 +134,7 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
-              Nome
+              First Name
             </label>
             <input
               id="first_name"
@@ -149,7 +147,7 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
           </div>
           <div>
             <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
-              Sobrenome
+              Last Name
             </label>
             <input
               id="last_name"
@@ -162,68 +160,36 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
           </div>
         </div>
 
-        {/* Contact */}
-        <div>
-          <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-            Telefone
-          </label>
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            value={formData.phone}
-            onChange={handleChange}
-            placeholder="+1 (XXX) XXX-XXXX"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-          />
-        </div>
-
         {/* Work */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-1">
-              Empresa
+            <label htmlFor="company_name" className="block text-sm font-medium text-gray-700 mb-1">
+              Company
             </label>
             <input
-              id="company"
-              name="company"
+              id="company_name"
+              name="company_name"
               type="text"
-              value={formData.company}
+              value={formData.company_name}
               onChange={handleChange}
-              placeholder="Nome da empresa"
+              placeholder="Company name"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
           </div>
           <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-              Cargo
+            <label htmlFor="trade" className="block text-sm font-medium text-gray-700 mb-1">
+              Trade
             </label>
             <input
-              id="role"
-              name="role"
+              id="trade"
+              name="trade"
               type="text"
-              value={formData.role}
+              value={formData.trade}
               onChange={handleChange}
-              placeholder="Ex: Carpinteiro, Eletricista"
+              placeholder="e.g., Carpenter, Electrician"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
           </div>
-        </div>
-
-        {/* Bio */}
-        <div>
-          <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">
-            Bio
-          </label>
-          <textarea
-            id="bio"
-            name="bio"
-            rows={3}
-            value={formData.bio}
-            onChange={handleChange}
-            placeholder="Conte um pouco sobre você..."
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none"
-          />
         </div>
 
         {/* Submit */}
@@ -238,7 +204,7 @@ export function EditProfileForm({ profile }: EditProfileFormProps) {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            {loading ? 'Salvando...' : 'Salvar Alterações'}
+            {loading ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </form>

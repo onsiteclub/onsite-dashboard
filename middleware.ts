@@ -35,32 +35,33 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const pathname = request.nextUrl.pathname
 
-  // Rotas protegidas - requerem autenticação
+  // Protected routes - require authentication
   if (pathname.startsWith('/account') || pathname.startsWith('/admin')) {
     if (!user) {
-      // Redireciona pra / (página de login) ao invés de /login
+      // Redirect to / (login page)
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
 
-  // Admin - requer is_admin = true
+  // Admin - requires admin role
   if (pathname.startsWith('/admin')) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user!.id)
+    // Check admin_users table for admin role
+    const { data: adminUser } = await supabase
+      .from('admin_users')
+      .select('is_active, role')
+      .eq('user_id', user!.id)
       .single()
 
-    if (!profile?.is_admin) {
+    if (!adminUser?.is_active) {
       return NextResponse.redirect(new URL('/account', request.url))
     }
   }
 
-  // Atualizar last_seen_at
+  // Update last_active_at in core_profiles
   if (user && (pathname.startsWith('/account') || pathname.startsWith('/admin'))) {
     await supabase
-      .from('profiles')
-      .update({ last_seen_at: new Date().toISOString() })
+      .from('core_profiles')
+      .update({ last_active_at: new Date().toISOString() })
       .eq('id', user.id)
   }
 
