@@ -13,18 +13,20 @@ export default async function CalculatorDashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('voice_calculator_enabled, has_payment_method, subscription_status, trial_ends_at')
-    .eq('id', user.id)
+  const { data: subscription } = await supabase
+    .from('billing_subscriptions')
+    .select('status, trial_end, has_payment_method')
+    .eq('user_id', user.id)
+    .eq('app_name', 'calculator')
     .single()
 
-  const voiceEnabled = profile?.voice_calculator_enabled || false
+  const voiceEnabled = subscription?.has_payment_method || false
   const calculatorUrl = process.env.NEXT_PUBLIC_CALCULATOR_URL || 'https://calc.onsite.ca'
+  const subStatus = subscription?.status || 'none'
 
   let trialDaysRemaining = 0
-  if (profile?.subscription_status === 'trialing' && profile?.trial_ends_at) {
-    const trialEnd = new Date(profile.trial_ends_at)
+  if (subStatus === 'trialing' && subscription?.trial_end) {
+    const trialEnd = new Date(subscription.trial_end)
     const now = new Date()
     trialDaysRemaining = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
   }
@@ -41,7 +43,7 @@ export default async function CalculatorDashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatusCard icon={Mic} title="Voice Input" value={voiceEnabled ? 'Enabled' : 'Locked'} status={voiceEnabled ? 'active' : 'locked'} />
-        <StatusCard icon={Clock} title="Subscription" value={profile?.subscription_status === 'trialing' ? `Trial (${trialDaysRemaining}d)` : 'Active'} status={profile?.subscription_status === 'active' ? 'active' : 'trial'} />
+        <StatusCard icon={Clock} title="Subscription" value={subStatus === 'trialing' ? `Trial (${trialDaysRemaining}d)` : subStatus === 'active' ? 'Active' : 'None'} status={subStatus === 'active' ? 'active' : subStatus === 'trialing' ? 'trial' : 'locked'} />
         <StatusCard icon={TrendingUp} title="Usage" value="Coming Soon" status="coming" />
       </div>
 

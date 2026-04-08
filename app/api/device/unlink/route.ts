@@ -11,15 +11,10 @@ export async function POST() {
     }
 
     const { error } = await supabase
-      .from('profiles')
-      .update({
-        device_id: null,
-        device_model: null,
-        device_platform: null,
-        device_registered_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', user.id)
+      .from('core_devices')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('is_primary', true)
 
     if (error) {
       console.error('Unlink device error:', error)

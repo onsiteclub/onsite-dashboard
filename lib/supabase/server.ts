@@ -1,6 +1,12 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+const isProduction = process.env.NODE_ENV === 'production'
+
+const sharedCookieOptions = isProduction
+  ? { domain: '.onsiteclub.ca', sameSite: 'lax' as const, secure: true }
+  : {}
+
 export async function createClient() {
   const cookieStore = await cookies()
 
@@ -14,14 +20,14 @@ export async function createClient() {
         },
         set(name: string, value: string, options: CookieOptions) {
           try {
-            cookieStore.set({ name, value, ...options })
+            cookieStore.set({ name, value, ...options, ...sharedCookieOptions })
           } catch (error) {
             // Server Component - ignore
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
-            cookieStore.set({ name, value: '', ...options })
+            cookieStore.set({ name, value: '', ...options, ...sharedCookieOptions })
           } catch (error) {
             // Server Component - ignore
           }

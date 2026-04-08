@@ -1,4 +1,3 @@
-// app/auth/callback/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
@@ -10,6 +9,13 @@ type EmailOtpType =
   | 'magiclink'
   | 'email_change'
 
+const isProduction = process.env.NODE_ENV === 'production'
+const AUTH_HUB_URL = process.env.NEXT_PUBLIC_AUTH_HUB_URL || 'https://auth.onsiteclub.ca'
+
+const sharedCookieOptions = isProduction
+  ? { domain: '.onsiteclub.ca' as const }
+  : {}
+
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
@@ -17,28 +23,30 @@ export async function GET(request: NextRequest) {
   const origin = url.origin
 
   const type = url.searchParams.get('type') as EmailOtpType | null
-
-  // Prefer the correct param name (token_hash). Keep fallback to legacy "code" just in case.
   const token_hash =
     url.searchParams.get('token_hash') ??
     url.searchParams.get('code')
 
-  // Optional: allow caller to specify next. Default for recovery is /reset-password
+  // Recovery goes to Auth Hub reset-password; everything else goes to /account
   const nextParam =
     url.searchParams.get('next') ??
-    (type === 'recovery' ? '/reset-password' : '/')
+    (type === 'recovery' ? `${AUTH_HUB_URL}/reset-password` : '/account')
 
-  // Anti open-redirect: only allow internal paths
-  const nextPath = nextParam.startsWith('/') ? nextParam : '/reset-password'
+  // Allow internal paths and auth hub URLs
+  const nextPath = nextParam.startsWith('/') || nextParam.startsWith(AUTH_HUB_URL)
+    ? nextParam
+    : '/account'
 
   if (!type || !token_hash) {
-    return NextResponse.redirect(new URL('/?error=missing_token', origin))
+    return NextResponse.redirect(new URL('/account', origin))
   }
 
-  // Create the redirect response first so we can attach cookies to it
-  const response = NextResponse.redirect(new URL(nextPath, origin))
+  const redirectUrl = nextPath.startsWith('http')
+    ? new URL(nextPath)
+    : new URL(nextPath, origin)
 
-  // Type the cookie payload to satisfy TS (noImplicitAny)
+  const response = NextResponse.redirect(redirectUrl)
+
   type CookieToSet = {
     name: string
     value: string
@@ -55,7 +63,7 @@ export async function GET(request: NextRequest) {
         },
         setAll(cookiesToSet: CookieToSet[]) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, { ...options, ...sharedCookieOptions })
           })
         },
       },
@@ -69,15 +77,8 @@ export async function GET(request: NextRequest) {
       message: error.message,
       type,
       hasTokenHash: Boolean(token_hash),
-      nextPath,
     })
-
-    return NextResponse.redirect(
-      new URL(
-        `/?error=auth_callback_error&message=${encodeURIComponent(error.message)}`,
-        origin
-      )
-    )
+    return NextResponse.redirect(new URL('/account', origin))
   }
 
   return response

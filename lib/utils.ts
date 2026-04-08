@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat('pt-BR', {
+  return new Intl.DateTimeFormat('en-CA', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -14,7 +14,7 @@ export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOpt
 }
 
 export function formatDateTime(date: string | Date) {
-  return new Intl.DateTimeFormat('pt-BR', {
+  return new Intl.DateTimeFormat('en-CA', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -36,21 +36,19 @@ export function formatMinutesToHours(minutes: number) {
   return `${hours}h ${mins}min`
 }
 
-// Adaptado para usar 'nome' como campo único
-export function getInitials(nome?: string | null): string {
-  if (!nome) return 'U'
-  
-  const parts = nome.trim().split(' ')
+export function getInitials(name?: string | null): string {
+  if (!name) return 'U'
+
+  const parts = name.trim().split(' ')
   if (parts.length >= 2) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   }
-  return nome.substring(0, 2).toUpperCase()
+  return name.substring(0, 2).toUpperCase()
 }
 
-// Extrai primeiro nome do campo 'nome'
-export function getFirstName(nome?: string | null): string {
-  if (!nome) return 'User'
-  return nome.trim().split(' ')[0]
+export function getFirstName(name?: string | null): string {
+  if (!name) return 'User'
+  return name.trim().split(' ')[0]
 }
 
 export function getLevelColor(level: string) {
@@ -67,10 +65,10 @@ export function getLevelColor(level: string) {
 export function getSubscriptionBadge(status: string) {
   const badges: Record<string, { label: string; color: string }> = {
     trialing: { label: 'Trial', color: 'bg-blue-100 text-blue-800' },
-    active: { label: 'Ativo', color: 'bg-green-100 text-green-800' },
-    past_due: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800' },
-    canceled: { label: 'Cancelado', color: 'bg-red-100 text-red-800' },
-    none: { label: 'Sem plano', color: 'bg-gray-100 text-gray-800' },
+    active: { label: 'Active', color: 'bg-green-100 text-green-800' },
+    past_due: { label: 'Past Due', color: 'bg-yellow-100 text-yellow-800' },
+    canceled: { label: 'Canceled', color: 'bg-red-100 text-red-800' },
+    none: { label: 'No Plan', color: 'bg-gray-100 text-gray-800' },
   }
   return badges[status] || badges.none
 }
