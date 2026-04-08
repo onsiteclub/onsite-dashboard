@@ -18,7 +18,7 @@ database: supabase-postgresql
 auth: supabase-auth
 payments: stripe
 deploy: vercel
-domain: app.onsiteclub.ca
+domain: member.onsiteclub.ca
 currency: CAD
 locale: en-CA
 trial_days: 180
@@ -1049,7 +1049,7 @@ TRIAL_PERIOD_DAYS=180
 OPENAI_API_KEY=sk-...
 
 # URLs
-NEXT_PUBLIC_APP_URL=https://app.onsiteclub.ca
+NEXT_PUBLIC_APP_URL=https://member.onsiteclub.ca
 NEXT_PUBLIC_SHOPIFY_URL=https://onsiteclub.ca/shop
 NEXT_PUBLIC_CALCULATOR_URL=https://calc.onsiteclub.ca
 ```

@@ -16,5 +16,5 @@ export default async function RootPage() {
   }
 
   // Not authenticated — redirect to Auth Hub
-  redirect(`${AUTH_LOGIN_URL}?return_to=${encodeURIComponent(process.env.NEXT_PUBLIC_APP_URL || 'https://dashboard.onsiteclub.ca')}/account`)
+  redirect(`${AUTH_LOGIN_URL}?return_to=${encodeURIComponent(process.env.NEXT_PUBLIC_APP_URL || 'https://member.onsiteclub.ca')}/account`)
 }

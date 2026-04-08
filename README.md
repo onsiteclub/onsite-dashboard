@@ -16,7 +16,7 @@ O OnSite Dashboard é o hub central que conecta todos os apps do ecossistema OnS
 
 | Serviço | URL |
 |---------|-----|
-| Hub/Dashboard | https://app.onsiteclub.ca |
+| Hub/Dashboard | https://member.onsiteclub.ca |
 | Site institucional | https://onsiteclub.ca |
 | Vercel | https://onsite-dashboard-v3.vercel.app |
 | GitHub | https://github.com/cristomp0087/onsite-dashboard |
@@ -75,7 +75,7 @@ npm run build
 
 ```env
 # Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://xmpckuiluwhcdzyadggh.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://bjkhofdrzpczgnwxoauk.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
@@ -86,7 +86,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_ID=price_...
 
 # App URLs
-NEXT_PUBLIC_APP_URL=https://app.onsiteclub.ca
+NEXT_PUBLIC_APP_URL=https://member.onsiteclub.ca
 NEXT_PUBLIC_CALCULATOR_URL=https://calc.onsiteclub.ca
 NEXT_PUBLIC_SHOPIFY_URL=https://onsiteclub.ca/shop
 ```
@@ -188,10 +188,10 @@ const trades = [
 ## ⚙️ Configurações do Supabase
 
 ### URL Configuration
-- **Site URL:** `https://app.onsiteclub.ca`
+- **Site URL:** `https://member.onsiteclub.ca`
 - **Redirect URLs:**
-  - `https://app.onsiteclub.ca/auth/callback`
-  - `https://app.onsiteclub.ca/reset-password`
+  - `https://member.onsiteclub.ca/auth/callback`
+  - `https://member.onsiteclub.ca/reset-password`
 
 ### Email Templates → Reset Password
 ```html
@@ -345,7 +345,7 @@ ADD CONSTRAINT locais_user_id_fkey
 ### Configurar Webhook
 1. Deploy na Vercel
 2. Stripe Dashboard → Developers → Webhooks
-3. Add endpoint: `https://app.onsiteclub.ca/api/webhooks/stripe`
+3. Add endpoint: `https://member.onsiteclub.ca/api/webhooks/stripe`
 4. Selecionar events acima
 5. Copiar signing secret para `STRIPE_WEBHOOK_SECRET`
 
@@ -405,7 +405,7 @@ O app mobile React Native/Expo usa:
 ```
 Calculator verifica sessão Supabase
     ↓
-Sem sessão? → Redireciona para app.onsiteclub.ca
+Sem sessão? → Redireciona para member.onsiteclub.ca
     ↓
 Com sessão → Verifica voice_calculator_enabled
     ↓
@@ -418,7 +418,7 @@ Disabled? → Mostra upgrade/adicionar cartão
 - [ ] `.env.local` configurado com todas as variáveis
 - [ ] `npm run build` sem erros
 - [ ] Deploy na Vercel
-- [ ] Domínio `app.onsiteclub.ca` configurado
+- [ ] Domínio `member.onsiteclub.ca` configurado
 - [ ] DNS CNAME apontando para Vercel
 - [ ] Supabase URL Configuration atualizado
 - [ ] Email template com `{{ .TokenHash }}`
@@ -448,7 +448,7 @@ Disabled? → Mostra upgrade/adicionar cartão
 
 ### ✅ Funcionando
 - Deploy no Vercel
-- Domínio app.onsiteclub.ca
+- Domínio member.onsiteclub.ca
 - Login inteligente
 - Cadastro com trade
 - Dashboard com cards
